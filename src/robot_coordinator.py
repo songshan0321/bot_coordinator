@@ -1,60 +1,199 @@
-#!/usr/bin/env python
-# license removed for brevity
-import rospy
-from std_msgs.msg import String
+#! /usr/bin/env python
+
+from __future__ import print_function
+import sys
+import rospy, rospkg
+
+# Python wrapper for Firebase
+import pyrebase
+
+# Brings in the SimpleActionClient
+import actionlib
+
+# Brings in the messages used by the move base action, including the
+# goal message and the result message.
+import move_base_msgs.msg
 from geometry_msgs.msg import PoseStamped
-import random
 
-def talker():
-    pub = rospy.Publisher('move_base_simple/goal', PoseStamped, queue_size=10)
-    rospy.init_node('robot_coordinator', anonymous=True)
-    rate = rospy.Rate(0.1) # every 10 sec
-    while not rospy.is_shutdown():
-        pose = get_random_pose_stamped()
-        # rospy.loginfo(pose.pose.position.x,pose.pose.position.y)
-        pub.publish(pose)
-        rate.sleep()
+class RobotCoordinator():
+    def __init__(self):
 
-def get_random_pose_stamped():
-    pose = PoseStamped()
-    pose.header.stamp = rospy.Time.now()
-    pose.header.frame_id = "map"
-    pose.pose.position.x = random.uniform(-1.8,1.8)
-    pose.pose.position.y = random.uniform(-1.8,1.8)
-    pose.pose.orientation.w = random.uniform(0.0,1.0)
+        rospack = rospkg.RosPack()
 
-    return pose
+        self.config = {
+        "apiKey": "AIzaSyCkNjSw6fyvpSB2pjbJgbrg9CcF0x9Njt0",
+        "authDomain": "orderfood-b7bbb.firebaseapp.com",
+        "databaseURL": "https://orderfood-b7bbb.firebaseio.com",
+        "storageBucket": "orderfood-b7bbb.appspot.com",
+        "serviceAccount": rospack.get_path('esc_bot')+"/config/orderfood-b7bbb-f90f0ee40141.json"
+        }
+        
+        # setup firebase and user authentication
+        firebase = pyrebase.initialize_app(self.config)
+        auth = firebase.auth()
+        self.user = auth.sign_in_with_email_and_password("songshan_you@hotmail.com", "helloworld")
+        self.user = auth.refresh(self.user['refreshToken'])
+        self.db = firebase.database()
 
-# def to_marker(self, robot):
-#     marker = Marker()
-#     marker.header.frame_id = "map"
-#     marker.header.stamp = rospy.Time.now()
-#     marker.pose.position.x = self.x
-#     marker.pose.position.y = self.y
-#     marker.pose.position.z = 0
+        self.cycle = 0
+        self.current_goal = None
+        self.current_waypoints = []
+        self.map_points = {"KITCHEN":(0,0,1.0), "TABLE1":(0.8,-6.0,1.0), "TABLE2":(0.8,-9.0,1.0), "TABLE3":(2.8,-6.0,1.0), "TABLE4":(2.8,-9.0,1.0), "TABLE5":(6.8,-6.0,1.0), "TABLE6":(6.8,-9.0,1.0)}
+        # self.map_points = {"KITCHEN":(0.0,0.0,1.0), "TABLE1":(4.25,-6.05,1.0), "TABLE2":(4.15,-9,1.0)}
+        self.state = None
+        self.result = None
+        self.keys = [] # unique firebase keys corresponds to current_waypoints
+        self.max_capacity = 3
 
-#     quaternion = tf.transformations.quaternion_from_euler(0, 0, self.theta)
-#     marker.pose.orientation.x = quaternion[0]
-#     marker.pose.orientation.y = quaternion[1]
-#     marker.pose.orientation.z = quaternion[2]
-#     marker.pose.orientation.w = quaternion[3]
 
-#     marker.scale.x = robot.width
-#     marker.scale.y = robot.height
-#     marker.scale.z = 0.2
+        # Firebase registration token comes from the client FCM SDKs (Kitchen app)
+        # self.registration_token = "XXXXXXXXXXX"
 
-#     marker.color.r = 1.0
-#     marker.color.g = 0.0
-#     marker.color.b = 0.0
-#     marker.color.a = 1.0
+        # Initializes a rospy SimpleActionClient
+        rospy.init_node('goal_client_py') 
+        
+        # Creates the SimpleActionClient, passing the type of the action (MoveBaseAction) to the constructor.
+        self.client = actionlib.SimpleActionClient('move_base', move_base_msgs.msg.MoveBaseAction)
 
-#     marker.type = Marker.CUBE
-#     marker.action = marker.ADD
+        # Waits until the action server has started up and started listening for goals.
+        # rospy.loginfo("Waiting for server to start up...")
+        self.client.wait_for_server()
+        # rospy.loginfo("Connected to move_base server")
 
-#     return marker
+
+    def go_to(self, goal):
+        """
+        Send robot to a specific goal on the map.
+        """
+        # Sends the goal to the action server.
+        self.client.send_goal(goal)
+        # Waits for the server to finish performing the action with 100 sec timeout
+        self.client.wait_for_result(rospy.Duration(100))
+        # Get the result of executing the action
+        self.result = self.client.get_result()  # A MoveBaseActionResult
+
+    def create_goal(self, (x,y,theta)):
+        pose = PoseStamped()
+        pose.header.stamp = rospy.Time.now()
+        pose.header.frame_id = "map"
+        pose.pose.position.x = x
+        pose.pose.position.y = y
+        pose.pose.orientation.w = theta
+
+        goal = move_base_msgs.msg.MoveBaseGoal()
+        goal.target_pose = pose
+
+        return goal
+
+    def read_waypoints(self):
+        """
+        Read waypoints from firebase
+        """
+        self.current_waypoints = []
+        self.keys = []
+        delivery_list = self.db.child("delivery_list").get(self.user['idToken'])
+
+        if delivery_list.val() != None:
+            # convert Pyrebase object into dictionary
+            delivery_dict = {}
+            for delivery in delivery_list.each():
+                delivery_dict[delivery.key()] = delivery.val()
+
+            num_wp = min(len(delivery_dict), self.max_capacity)
+
+            for key in sorted(delivery_dict.iterkeys()):  # Sort order based on unique key
+                if len(self.current_waypoints) >= num_wp:
+                    break
+                # only add if the order is READY to deliver
+                if delivery_dict[key]["status"] == "READY":
+                    table_name = "TABLE" + str(delivery_dict[key]["table"])
+                    self.current_waypoints.append(table_name)
+                    self.keys.append(key)
+
+    def run_delivery(self):
+        if len(self.current_waypoints) > 0 and len(self.current_waypoints) <= self.max_capacity:
+            rospy.loginfo("Robot starting delivery cycle %i: %s",self.cycle,self.current_waypoints)
+            # Make sure robot is at kitchen
+            self.current_goal = self.create_goal(self.map_points["KITCHEN"])
+            self.go_to(self.current_goal)
+            rospy.loginfo("Robot is at KITCHEN: %s",self.map_points["KITCHEN"])
+
+            rospy.loginfo("Robot loading food.")
+            rospy.sleep(3) # Load food for 3 sec
+
+            for i in range(len(self.current_waypoints)):
+                # Send a table goal
+                self.current_goal = self.create_goal(self.map_points[self.current_waypoints[i]])
+                rospy.loginfo("Robot is heading to %s: %s",self.current_waypoints[i], self.map_points[self.current_waypoints[i]])
+                self.result = self.go_to(self.current_goal)
+                self.state = self.client.get_state()
+                if self.state == 3: #SUCCEEDED
+                    rospy.loginfo("Robot reached %s: %s",self.current_waypoints[i], self.map_points[self.current_waypoints[i]])
+                    rospy.sleep(5) # Serve food for 5 sec
+                    # remove elements from delivery list
+                    self.db.child("delivery_list").child(self.keys[i]).remove(self.user['idToken'])
+                else: #ABORTED or REJECTED or other status
+                    self.db.child("delivery_list").child(self.keys[i]).child('status').set("FAILED",self.user['idToken'])
+                    rospy.logwarn("Robot failed to navigate to %s: %s. Hence, delivery reuqest status is set to 'FAILED' and keep as uncleared.",\
+                                    self.current_waypoints[i], self.map_points[self.current_waypoints[i]])
+                    # Get failed order information
+                    # failed_order = self.db.child("delivery_list").child(self.keys[i]).get(self.user['idToken'])
+                    # send_cloud_msg(self.registration_token,failed_order)
+            
+            # Send robot back to kitchen
+            self.current_goal = self.create_goal(self.map_points["KITCHEN"])
+            rospy.loginfo("Robot is heading back to KITCHEN: %s",self.map_points["KITCHEN"])
+            self.result = self.go_to(self.current_goal)
+            self.state = self.client.get_state()
+            rospy.loginfo("Robot back to KITCHEN: %s",self.map_points["KITCHEN"])
+            rospy.loginfo("Robot had finished a delivery cycle.")
+
+        elif len(self.current_waypoints) == 0:
+            rospy.loginfo("No delivery now.")
+            rospy.sleep(3)
+
+        else:
+            rospy.logerr("Something is WRONG. Robot is trying to send more than %i order(s) at one time.", self.max_capacity)
+            sys.exit()
+
+    # def send_cloud_msg(self, registration_token, order):
+    #     # This registration token comes from the client FCM SDKs.
+    #     food = order["food"]
+    #     status = order["status"]
+    #     table = order["table"]
+    #     timestamp = order["timestamp"]
+        
+    #     message = messaging.Message(
+    #         data={
+    #             'msg': 'Robot failed to send an order',
+    #             'food': food,
+    #             'status': status,
+    #             'table': table,
+    #             'timestamp': timestamp,
+    #         },
+    #         token=registration_token,
+    #     )
+
+    #     # Send a message to the device corresponding to the provided
+    #     # registration token.
+    #     response = messaging.send(message)
+    #     # Response is a message ID string.
+    #     print('Successfully sent message:', response)
 
 if __name__ == '__main__':
-    try:
-        talker()
-    except rospy.ROSInterruptException:
-        pass
+
+    coordinator = RobotCoordinator()
+    
+    while True:
+        try:
+            coordinator.cycle += 1
+            # read waypoints from firebase
+            coordinator.read_waypoints()
+            # start delivery
+            coordinator.run_delivery()
+        
+        except rospy.ROSInterruptException:
+            print("program interrupted before completion", file=sys.stderr)
+            break
+                
+    
