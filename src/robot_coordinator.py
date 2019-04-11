@@ -53,9 +53,9 @@ class RobotCoordinator():
         self.client = actionlib.SimpleActionClient('move_base', move_base_msgs.msg.MoveBaseAction)
 
         # Waits until the action server has started up and started listening for goals.
-        # rospy.loginfo("Waiting for server to start up...")
+        rospy.loginfo("Waiting for server to start up...")
         self.client.wait_for_server()
-        # rospy.loginfo("Connected to move_base server")
+        rospy.loginfo("Connected to move_base server")
 
     def load_map_points(self,filename):
         """
@@ -127,6 +127,7 @@ class RobotCoordinator():
             self.current_goal = self.create_goal(self.map_points["KITCHEN"])
             self.go_to(self.current_goal)
             self.state = self.client.get_state()
+            rospy.loginfo("Navigation state: " + str(self.state))
             if self.state == 3: #SUCCEEDED
                 rospy.loginfo("Robot is at KITCHEN: %s",self.map_points["KITCHEN"])
                 rospy.loginfo("Robot loading food.")
@@ -147,6 +148,7 @@ class RobotCoordinator():
                 rospy.loginfo("Robot is heading to %s: %s",self.current_waypoints[i], self.map_points[self.current_waypoints[i]])
                 self.result = self.go_to(self.current_goal)
                 self.state = self.client.get_state()
+                rospy.loginfo("Navigation state: " + str(self.state))
                 if self.state == 3: #SUCCEEDED
                     rospy.loginfo("Robot reached %s: %s",self.current_waypoints[i], self.map_points[self.current_waypoints[i]])
                     rospy.sleep(3) # Serve food for 3 sec
@@ -167,6 +169,7 @@ class RobotCoordinator():
             rospy.loginfo("Robot is heading back to KITCHEN: %s",self.map_points["KITCHEN"])
             self.result = self.go_to(self.current_goal)
             self.state = self.client.get_state()
+            rospy.loginfo("Navigation state: " + str(self.state))
             if self.state == 3: #SUCCEEDED
                 rospy.loginfo("Robot back to KITCHEN: %s",self.map_points["KITCHEN"])
                 # set robot status to "READY"

@@ -5,6 +5,9 @@ import pyrebase
 import time
 import rospkg
 import os
+import signal
+import subprocess
+
 from robot_coordinator import *
 
 def setup_database():
@@ -37,6 +40,29 @@ def clean_order(db,user):
     result = db.child("test_list").remove(user['idToken'])
     return result
 
+def setup_module(module):
+    """
+    Setup before module
+    """
+    print()
+    print("-------------- setup before module --------------")
+    cmd = "roslaunch esc_bot esc_bot_2_blocked.launch"
+    pro = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
+                       shell=True, preexec_fn=os.setsid)
+    time.sleep(5)
+
+def teardown_module(module):
+    """
+    Teardown after module
+    """
+    print("-------------- teardown after module --------------")
+    os.system("killall -9 gzserver gzclient & rosnode kill -a")
+    print("Sleep 10 sec")
+    time.sleep(10)
+
+def pytest_keyboard_interrupt(excinfo):
+    teardown_module()
+
 ##################################### Test cases ############################################
 
 # Robustness Test
@@ -45,8 +71,6 @@ def test_path_blocked():
     Robustness Test: Test robot status and orders' status are changed to "FAILED" when it failed to navigate to destination
     """
     print("Robustness Test: test_path_blocked")
-    os.system("roslaunch esc_bot esc_bot_2.launch &")
-    time.sleep(5)
     db, user = setup_database()
     result = clean_order(db,user)
 
@@ -71,6 +95,3 @@ def test_path_blocked():
     test_list = db.child("test_list").get(user['idToken'])
     for order in test_list.each():
         assert order.val()["status"] == "FAILED"
-
-    os.system("kill $!")
-    time.sleep(10)

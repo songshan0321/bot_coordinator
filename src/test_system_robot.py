@@ -5,6 +5,9 @@ import pyrebase
 import time
 import rospkg
 import os
+import signal
+import subprocess
+
 from robot_coordinator import *
 
 def setup_database():
@@ -37,6 +40,29 @@ def clean_order(db,user):
     result = db.child("test_list").remove(user['idToken'])
     return result
 
+def setup_module(module):
+    """
+    Setup before module
+    """
+    print()
+    print("-------------- setup before module --------------")
+    cmd = "roslaunch esc_bot esc_bot_2.launch"
+    pro = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
+                       shell=True, preexec_fn=os.setsid)
+    time.sleep(5)
+
+def teardown_module(module):
+    """
+    Teardown after module
+    """
+    print("-------------- teardown after module --------------")
+    os.system("killall -9 gzserver gzclient & rosnode kill -a")
+    print("Sleep 10 sec")
+    time.sleep(10)
+
+def pytest_keyboard_interrupt(excinfo):
+    teardown_module()
+
 ##################################### Test cases ############################################
 
 
@@ -46,8 +72,6 @@ def test_two_order_delivery():
     System Test: Test 2 orders are delivered successfully within (Status must be "DELIVERED")
     """
     print("System Test: test_two_order_delivery")
-    os.system("roslaunch esc_bot esc_bot_2.launch &")
-    time.sleep(5)
     db, user = setup_database()
     result = clean_order(db,user)
 
@@ -72,6 +96,3 @@ def test_two_order_delivery():
     test_list = db.child("test_list").get(user['idToken'])
     for order in test_list.each():
         assert order.val()["status"] == "DELIVERED"
-
-    os.system("kill $!")
-    time.sleep(10)

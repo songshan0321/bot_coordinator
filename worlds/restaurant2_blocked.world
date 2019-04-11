@@ -1987,10 +1987,10 @@
       <static>1</static>
     </model>
     <state world_name='default'>
-      <sim_time>107 624000000</sim_time>
-      <real_time>108 429584204</real_time>
-      <wall_time>1554909671 253537430</wall_time>
-      <iterations>107624</iterations>
+      <sim_time>127 926000000</sim_time>
+      <real_time>20 546126345</real_time>
+      <wall_time>1554977936 822796318</wall_time>
+      <iterations>20302</iterations>
       <model name='cafe_table'>
         <pose frame=''>-5.8777 3.45286 0 0 -0 0</pose>
         <scale>1 1 1</scale>
@@ -2114,7 +2114,7 @@
         </link>
       </model>
       <model name='restaurant'>
-        <pose frame=''>-0.910578 -0.005951 0 0 -0 0</pose>
+        <pose frame=''>-0.910578 -0.00595 0 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='Wall_0'>
           <pose frame=''>-0.918488 4.03534 0 0 -0 3.14159</pose>
@@ -2322,6 +2322,16 @@
         </link>
         <link name='link_1'>
           <pose frame=''>-3.01345 -1.22259 0.5 0 0 -1.5684</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='unit_box'>
+        <pose frame=''>0.249262 0.971427 0.5 0 -0 0.037386</pose>
+        <scale>1 1 1</scale>
+        <link name='link'>
+          <pose frame=''>0.249262 0.971427 0.5 0 -0 0.037386</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -8776,10 +8786,61 @@
     </model>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose frame=''>-12.3753 -23.7992 39.5931 0 0.997798 1.09438</pose>
+        <pose frame=''>-0.36081 -0.537115 2.69459 0 0.932773 1.18649</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
     </gui>
+    <model name='unit_box'>
+      <pose frame=''>0.291301 1.00223 0.5 0 -0 0</pose>
+      <link name='link'>
+        <inertial>
+          <mass>1</mass>
+          <inertia>
+            <ixx>0.166667</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.166667</iyy>
+            <iyz>0</iyz>
+            <izz>0.166667</izz>
+          </inertia>
+        </inertial>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>1 1 1</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>1 1 1</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Grey</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <kinematic>0</kinematic>
+      </link>
+    </model>
   </world>
 </sdf>
