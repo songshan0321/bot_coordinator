@@ -21,6 +21,6 @@ user = auth.sign_in_with_email_and_password("songshan_you@hotmail.com", "hellowo
 
 # Get a reference to the database service
 db = firebase.database()
-for i in range(6):
+for i in range(2,12):
     delivery = {"food": "Chicken Rice","status": "READY", "table": i+1, "timestamp": time.time()}
     result = db.child("delivery_list").push(delivery, user['idToken'])

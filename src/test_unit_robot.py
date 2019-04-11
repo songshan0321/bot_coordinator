@@ -33,16 +33,16 @@ def clean_order(db,user):
     """
     Clean order list on firebase real-time database
     """
-    result = db.child("delivery_list").remove(user['idToken'])
+    result = db.child("test_list").remove(user['idToken'])
     return result
 
 ##################################### Test cases ############################################
 
 def test_read_waypoints_within_max_cap():
     """
-    Test delivery is scheduled within maximum robot capacity
+    Unit Test: Test delivery is scheduled within maximum robot capacity
     """
-    print("test_read_waypoints_within_max_cap")
+    print("Unit Test: test_read_waypoints_within_max_cap")
     db, user = setup_database()
     result = clean_order(db,user)
     
@@ -53,11 +53,11 @@ def test_read_waypoints_within_max_cap():
                     "status": "READY",\
                     "table": i+1,\
                     "timestamp": time.time()}
-        result = db.child("delivery_list").push(delivery, user['idToken'])
+        result = db.child("test_list").push(delivery, user['idToken'])
     print("Sent {} orders".format(num_order))
     time.sleep(2)
-    rospack = rospkg.RosPack()
     coordinator = RobotCoordinator()
+    coordinator.set_delivery_list_name("test_list")
     coordinator.read_waypoints()
     print ("Waypoints length: {}".format(len(coordinator.current_waypoints)))
 
@@ -66,9 +66,9 @@ def test_read_waypoints_within_max_cap():
 
 def test_read_waypoints_chronogically():
     """
-    Test delivery is scheduled chronogically
+    Unit Test: Test delivery is scheduled chronogically
     """
-    print("test_read_waypoints_chronogically")
+    print("Unit Test: test_read_waypoints_chronogically")
     db, user = setup_database()
     result = clean_order(db,user)
     
@@ -79,11 +79,11 @@ def test_read_waypoints_chronogically():
                     "status": "READY",\
                     "table": i+1,\
                     "timestamp": time.time()}
-        result = db.child("delivery_list").push(delivery, user['idToken'])
+        result = db.child("test_list").push(delivery, user['idToken'])
     print("Sent {} orders".format(num_order))
     time.sleep(2)
-    rospack = rospkg.RosPack()
     coordinator = RobotCoordinator()
+    coordinator.set_delivery_list_name("test_list")
     coordinator.read_waypoints()
     current_waypoint = 0
     for waypoint in coordinator.current_waypoints:
@@ -98,9 +98,9 @@ def test_read_waypoints_chronogically():
 
 def test_read_waypoints_only_ready():
     """
-    Test delivery scheduled are all in READY state
+    Unit Test: Test delivery scheduled are all in READY state
     """
-    print("test_read_waypoints_only_ready")
+    print("Unit Test: test_read_waypoints_only_ready")
     db, user = setup_database()
     result = clean_order(db,user)
     
@@ -112,11 +112,11 @@ def test_read_waypoints_only_ready():
                     "status": status_ls[i],\
                     "table": i+1,\
                     "timestamp": time.time()}
-        result = db.child("delivery_list").push(delivery, user['idToken'])
+        result = db.child("test_list").push(delivery, user['idToken'])
     print("Sent {} orders".format(num_order))
     time.sleep(2)
-    rospack = rospkg.RosPack()
     coordinator = RobotCoordinator()
+    coordinator.set_delivery_list_name("test_list")
     coordinator.read_waypoints()
 
     for waypoint in coordinator.current_waypoints:
@@ -124,3 +124,5 @@ def test_read_waypoints_only_ready():
             assert False
 
     assert True
+    
+
